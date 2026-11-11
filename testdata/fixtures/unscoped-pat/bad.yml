@@ -1,0 +1,9 @@
+on: push
+permissions:
+  contents: read
+env:
+  PAT: ghp_abcdefghijklmnopqrstuvwxyz0123456789
+jobs:
+  build:
+    steps:
+      - run: echo ok

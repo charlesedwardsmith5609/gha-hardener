@@ -1,0 +1,249 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "gha-hardener",
+          "version": "0.1.0",
+          "rules": [
+            {
+              "id": "findings-truncated",
+              "shortDescription": {
+                "text": "The finding list was capped"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            },
+            {
+              "id": "permissions-missing",
+              "shortDescription": {
+                "text": "Job has no permissions block"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "permissions-write-all",
+              "shortDescription": {
+                "text": "Job grants write-all"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "pull-request-target-checkout",
+              "shortDescription": {
+                "text": "pull_request_target checks out pull request head"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "script-injection",
+              "shortDescription": {
+                "text": "run script reads github.event"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "secrets-untrusted-trigger",
+              "shortDescription": {
+                "text": "Secret passed to an untrusted trigger"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "unpinned-action",
+              "shortDescription": {
+                "text": "Action is not pinned to a commit SHA"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "unscoped-pat",
+              "shortDescription": {
+                "text": "Env holds an unscoped personal access token"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "unscoped-pat",
+          "level": "error",
+          "message": {
+            "text": "env \"PAT\" holds an unscoped personal access token"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 5,
+                  "startColumn": 3
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "permissions-missing",
+          "level": "warning",
+          "message": {
+            "text": "job \"loose\" has no permissions block"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 7,
+                  "startColumn": 3
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "secrets-untrusted-trigger",
+          "level": "error",
+          "message": {
+            "text": "secret is passed to untrusted trigger pull_request_target"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 10,
+                  "startColumn": 11
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unscoped-pat",
+          "level": "error",
+          "message": {
+            "text": "env \"GH_PAT\" holds an unscoped personal access token"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 10,
+                  "startColumn": 11
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "script-injection",
+          "level": "error",
+          "message": {
+            "text": "run script reads github.event (script injection)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 11,
+                  "startColumn": 14
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "permissions-write-all",
+          "level": "error",
+          "message": {
+            "text": "job \"wide\" grants permissions: write-all"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 13,
+                  "startColumn": 18
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "pull-request-target-checkout",
+          "level": "error",
+          "message": {
+            "text": "pull_request_target workflow checks out pull request head ref"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 15,
+                  "startColumn": 15
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unpinned-action",
+          "level": "warning",
+          "message": {
+            "text": "action \"actions/checkout@v4\" is not pinned to a 40-character commit SHA"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 15,
+                  "startColumn": 15
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

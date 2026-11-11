@@ -100,6 +100,7 @@ func TestScriptInjection(t *testing.T) {
 		{"event name", "on: push\njobs:\n  build:\n    steps:\n      - run: echo ${{ github.event_name }}\n", "", 0},
 		{"event name brackets", "on: push\njobs:\n  build:\n    steps:\n      - run: echo ${{ github['event_name'] }}\n", "", 0},
 		{"string literal", "on: push\njobs:\n  build:\n    steps:\n      - run: echo ${{ contains('github.event.issue.title', 'x') }}\n", "", 0},
+		{"property named github", "on: push\njobs:\n  build:\n    permissions:\n      contents: read\n    steps:\n      - run: echo ${{ matrix.github.event }}\n", "", 0},
 		{"mixed case", "on: push\njobs:\n  build:\n    steps:\n      - run: echo ${{ GitHub.Event.issue.title }}\n", "", 1},
 		{"mixed case brackets", "on: push\njobs:\n  build:\n    steps:\n      - run: echo ${{ GitHub['Event'] }}\n", "", 1},
 	}
@@ -111,6 +112,97 @@ func TestScriptInjection(t *testing.T) {
 				t.Fatalf("findings %#v", got)
 			}
 		})
+	}
+}
+
+func TestCheckout(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		file string
+		want int
+	}{
+		{"good", "", "pull-request-target-checkout/good.yml", 0},
+		{"bad", "", "pull-request-target-checkout/bad.yml", 1},
+		{"repository only", "on: pull_request_target\npermissions:\n  contents: read\njobs:\n  build:\n    steps:\n      - uses: actions/checkout@0123456789abcdef0123456789abcdef01234567\n        with:\n          repository: ${{ github.event.pull_request.head.repo.full_name }}\n", "", 1},
+		{"push is clean", "on: push\njobs:\n  build:\n    permissions:\n      contents: read\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          ref: ${{ github.event.pull_request.head.sha }}\n", "", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Checkout(loadWorkflow(t, tc.file, tc.src))
+			if len(got) != tc.want {
+				t.Fatalf("findings %#v", got)
+			}
+		})
+	}
+}
+
+func TestSecrets(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		file string
+		want int
+	}{
+		{"good", "", "secrets-untrusted-trigger/good.yml", 0},
+		{"bad", "", "secrets-untrusted-trigger/bad.yml", 1},
+		{"tojson", "on: pull_request\npermissions:\n  contents: read\njobs:\n  build:\n    steps:\n      - run: echo ${{ toJSON(secrets) }}\n", "", 1},
+		{"dynamic index", "on: issues\npermissions:\n  contents: read\njobs:\n  build:\n    steps:\n      - run: echo ${{ secrets[github.event.issue.title] }}\n", "", 1},
+		{"quoted string", "on: pull_request\npermissions:\n  contents: read\njobs:\n  build:\n    steps:\n      - run: echo ${{ contains('secrets.DEPLOY', 'x') }}\n", "", 0},
+		{"secrets property", "on: pull_request\npermissions:\n  contents: read\njobs:\n  build:\n    steps:\n      - run: echo ${{ github.event.client_payload.secrets.value }}\n", "", 0},
+		{"trusted push", "on: push\npermissions:\n  contents: read\njobs:\n  build:\n    steps:\n      - env:\n          TOKEN: ${{ secrets.DEPLOY }}\n        run: echo ok\n", "", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Secrets(loadWorkflow(t, tc.file, tc.src))
+			if len(got) != tc.want {
+				t.Fatalf("findings %#v", got)
+			}
+		})
+	}
+}
+
+func TestPAT(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		file string
+		want int
+	}{
+		{"good", "", "unscoped-pat/good.yml", 0},
+		{"bad", "", "unscoped-pat/bad.yml", 1},
+		{"runtime value", "on: push\npermissions:\n  contents: read\nenv:\n  GH_TOKEN: generated-at-runtime\njobs:\n  build:\n    steps:\n      - run: echo ok\n", "", 0},
+		{"github token expression", "on: push\npermissions:\n  contents: read\nenv:\n  GH_TOKEN: ${{ github.token }}\njobs:\n  build:\n    steps:\n      - run: echo ok\n", "", 0},
+		{"mixed secrets", "on: push\npermissions:\n  contents: read\nenv:\n  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} ${{ secrets.OTHER }}\njobs:\n  build:\n    steps:\n      - run: echo ok\n", "", 1},
+		{"path is not a pat", "on: push\npermissions:\n  contents: read\nenv:\n  PATH: ${{ secrets.DEPLOY }}\njobs:\n  build:\n    steps:\n      - run: echo ok\n", "", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := PAT(loadWorkflow(t, tc.file, tc.src))
+			if len(got) != tc.want {
+				t.Fatalf("findings %#v", got)
+			}
+		})
+	}
+}
+
+func TestAllCapsFindings(t *testing.T) {
+	job := workflow.Job{ID: "build", Permissions: &workflow.Permissions{}}
+	for i := 0; i < 1000; i++ {
+		job.Steps = append(job.Steps, workflow.Step{
+			Uses: "actions/checkout@v4", UsesLine: i + 1, UsesColumn: 1,
+		})
+	}
+	wf := &workflow.Workflow{Path: "ci.yml", Jobs: []workflow.Job{job}}
+	got := All([]*workflow.Workflow{wf})
+	if len(got) != 1000 {
+		t.Fatalf("len %d", len(got))
+	}
+	if got[998].RuleID != "unpinned-action" || got[999].RuleID != "findings-truncated" {
+		t.Fatalf("tail %#v %#v", got[998], got[999])
+	}
+	if got[999].File != "." || got[999].Line != 1 || got[999].Message != "1 findings omitted" {
+		t.Fatalf("note %#v", got[999])
 	}
 }
 

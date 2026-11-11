@@ -64,12 +64,26 @@ type Permissions struct {
 	Line, Column int
 }
 
-// Step is one job step. Env and with are intentionally not stored yet.
+// Env is one environment entry.
+type Env struct {
+	Name, Value  string
+	Line, Column int
+}
+
+// Input is one action `with` entry.
+type Input struct {
+	Name, Value  string
+	Line, Column int
+}
+
+// Step is one job step.
 type Step struct {
 	Uses                 string
 	UsesLine, UsesColumn int
 	Run                  string
 	RunLine, RunColumn   int
+	Env                  []Env
+	With                 []Input
 }
 
 // Job is one entry under jobs. Uses is set for a reusable-workflow job.
@@ -79,6 +93,7 @@ type Job struct {
 	Permissions          *Permissions
 	Uses                 string
 	UsesLine, UsesColumn int
+	Env                  []Env
 	Steps                []Step
 }
 
@@ -88,6 +103,7 @@ type Workflow struct {
 	Path        string
 	On          []Event
 	Permissions *Permissions
+	Env         []Env
 	Jobs        []Job
 }
 
@@ -151,6 +167,12 @@ func Parse(displayPath string, data []byte) (*Workflow, error) {
 				return nil, err
 			}
 			wf.Jobs = jobs
+		case "env":
+			env, err := parseEnv(val)
+			if err != nil {
+				return nil, err
+			}
+			wf.Env = env
 		}
 	}
 	return wf, nil
@@ -340,8 +362,17 @@ func displayPath(dir, name string) string {
 	return rel
 }
 
+func hasControl(p string) bool {
+	for i := 0; i < len(p); i++ {
+		if p[i] < 0x20 || p[i] == 0x7f {
+			return true
+		}
+	}
+	return false
+}
+
 func validDisplay(p string) error {
-	if p == "" || strings.Contains(p, "\\") || strings.Contains(p, "\x00") {
+	if p == "" || strings.Contains(p, "\\") || strings.Contains(p, "\x00") || hasControl(p) {
 		return fmt.Errorf("invalid workflow path %q", p)
 	}
 	if filepath.IsAbs(p) || strings.HasPrefix(p, "/") {
@@ -542,6 +573,12 @@ func parseJobs(n *yaml.Node, raw []byte) ([]Job, error) {
 					return nil, err
 				}
 				job.Steps = steps
+			case "env":
+				env, err := parseEnv(val)
+				if err != nil {
+					return nil, err
+				}
+				job.Env = env
 			}
 		}
 		jobs = append(jobs, job)
@@ -583,11 +620,77 @@ func parseSteps(n *yaml.Node) ([]Step, error) {
 				}
 				step.Run = s
 				step.RunLine, step.RunColumn = lineOf(val), colOf(val)
+			case "env":
+				env, err := parseEnv(val)
+				if err != nil {
+					return nil, err
+				}
+				step.Env = env
+			case "with":
+				with, err := parseWith(val)
+				if err != nil {
+					return nil, err
+				}
+				step.With = with
 			}
 		}
 		steps = append(steps, step)
 	}
 	return steps, nil
+}
+
+func parseEnv(n *yaml.Node) ([]Env, error) {
+	pairs, err := parsePairs(n, "env")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Env, len(pairs))
+	for i, p := range pairs {
+		out[i] = Env{Name: p.Name, Value: p.Value, Line: p.Line, Column: p.Column}
+	}
+	return out, nil
+}
+
+func parseWith(n *yaml.Node) ([]Input, error) {
+	pairs, err := parsePairs(n, "with")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Input, len(pairs))
+	for i, p := range pairs {
+		out[i] = Input(p)
+	}
+	return out, nil
+}
+
+type pair struct {
+	Name, Value  string
+	Line, Column int
+}
+
+func parsePairs(n *yaml.Node, what string) ([]pair, error) {
+	if n.Kind == yaml.ScalarNode && n.Tag == "!!null" {
+		return nil, nil
+	}
+	if n.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("%s must be a mapping", what)
+	}
+	var out []pair
+	for i := 0; i < len(n.Content); i += 2 {
+		k := n.Content[i]
+		if k.Kind != yaml.ScalarNode {
+			return nil, fmt.Errorf("%s name must be a scalar", what)
+		}
+		if k.Value == "<<" || k.Tag == "!!merge" {
+			return nil, ErrMerge
+		}
+		val, err := scalar(n.Content[i+1], what)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, pair{Name: k.Value, Value: val, Line: lineOf(k), Column: colOf(k)})
+	}
+	return out, nil
 }
 
 func scalar(n *yaml.Node, what string) (string, error) {

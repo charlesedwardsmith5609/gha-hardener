@@ -1,0 +1,10 @@
+on: push
+permissions:
+  contents: read
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PATH: /usr/bin
+jobs:
+  build:
+    steps:
+      - run: echo ok

@@ -1,0 +1,7 @@
+on: pull_request_target
+permissions:
+  contents: read
+jobs:
+  build:
+    steps:
+      - uses: actions/checkout@0123456789abcdef0123456789abcdef01234567

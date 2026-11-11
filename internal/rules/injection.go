@@ -36,21 +36,29 @@ func Injection(wf *workflow.Workflow) []Finding {
 }
 
 func readsGitHubEvent(run string) bool {
-	for i := 0; i < len(run); {
-		if strings.HasPrefix(run[i:], "${{") {
-			body, next, ok := scanExpr(run, i+3)
+	for _, body := range expressions(run) {
+		if exprReadsEvent(body) {
+			return true
+		}
+	}
+	return false
+}
+
+func expressions(s string) []string {
+	var out []string
+	for i := 0; i < len(s); {
+		if strings.HasPrefix(s[i:], "${{") {
+			body, next, ok := scanExpr(s, i+3)
 			if !ok {
-				return false
+				return out
 			}
-			if exprReadsEvent(body) {
-				return true
-			}
+			out = append(out, body)
 			i = next
 			continue
 		}
 		i++
 	}
-	return false
+	return out
 }
 
 func scanExpr(s string, i int) (string, int, bool) {
@@ -76,7 +84,7 @@ func exprReadsEvent(s string) bool {
 		}
 		if isIdentStart(s[i]) {
 			ident, next := readIdent(s, i)
-			if strings.EqualFold(ident, "github") && followedByEvent(s, next) {
+			if strings.EqualFold(ident, "github") && !isProperty(s, i) && followedByEvent(s, next) {
 				return true
 			}
 			i = next
@@ -160,6 +168,14 @@ func skipSpace(s string, i int) int {
 		i++
 	}
 	return i
+}
+
+func isProperty(s string, identStart int) bool {
+	j := identStart - 1
+	for j >= 0 && (s[j] == ' ' || s[j] == '\t' || s[j] == '\n' || s[j] == '\r') {
+		j--
+	}
+	return j >= 0 && s[j] == '.'
 }
 
 func isIdentStart(b byte) bool {

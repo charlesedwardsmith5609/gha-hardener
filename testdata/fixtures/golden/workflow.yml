@@ -1,0 +1,17 @@
+name: ci
+on:
+  pull_request_target:
+env:
+  PAT: ghp_abcdefghijklmnopqrstuvwxyz0123456789
+jobs:
+  loose:
+    steps:
+      - env:
+          GH_PAT: ${{ secrets.DEPLOY }}
+        run: echo ${{ github.event.issue.title }}
+  wide:
+    permissions: write-all
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}

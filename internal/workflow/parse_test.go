@@ -273,6 +273,12 @@ func TestLoadDirStopsAfterTotalBudgetOfOversizedFiles(t *testing.T) {
 	}
 }
 
+func TestDisplayPathRejectsControlCharacter(t *testing.T) {
+	if _, err := Parse("ci\n.yml", []byte("on: push\njobs: {}\n")); err == nil {
+		t.Fatal("expected a newline in the path to fail")
+	}
+}
+
 func TestDisplayPathRejectsTraversal(t *testing.T) {
 	if _, err := Parse("../ci.yml", []byte("on: push\n")); err == nil {
 		t.Fatal("expected traversal path to fail")
