@@ -16,11 +16,11 @@
 
 `gopkg.in/yaml.v3` node decoder (line and column come from the node). See `DECISIONS.md` for the dependency assumption.
 
-The walker rejects alias nodes and a mapping key `<<`, and stops at 100000 nodes. Keys and the values we interpret (`on`, `permissions`, `env`, `jobs`, `steps`, `uses`, `run`, `with`, `if`) must be scalars where GitHub requires scalars. Other keys are ignored. A second document is an error.
+`Parse` rejects a buffer larger than 1 MiB before decoding. The walker rejects alias nodes, a mapping key `<<`, depth over 32, and more than 100000 nodes. yaml.v3 builds the node tree inside `Decode`, so the byte cap is what bounds that allocation; the node and depth checks run on the tree before it is interpreted. Keys and the values we interpret (`on`, `permissions`, `env`, `jobs`, `steps`, `uses`, `run`, `with`, `if`) must be scalars where GitHub requires scalars. Other keys are ignored. A second document is an error.
 
 The key `on` is special-cased because YAML 1.1 treats `on` as a boolean. The parser recovers it from the raw line when the node tag is `!!bool`.
 
-Reported paths use forward slashes, are relative, and are rejected when they contain `..` or are absolute. `LoadDir` opens `filepath.Join(dir, name)` with `syscall.Open` and `O_NOFOLLOW`, then `fstat`s that descriptor and reads it. A symlink fails the open. There is no `Lstat`-then-`Open` window.
+Reported paths use forward slashes, are relative, and are rejected when they contain `..` or are absolute. `LoadDir` walks every component of the directory from `/` (absolute) or `.` (relative) with `openat`, `O_NOFOLLOW`, and `O_DIRECTORY`. A symlink component or a `..` component fails the open. Directory entries are read in batches. Only names that match the workflow pattern are kept, and at most 201 of them. Each file is opened with `openat` on that directory descriptor (`O_RDONLY|O_NOFOLLOW|O_NONBLOCK`). `fstat` must show a regular file before the read. A FIFO cannot block the open. Bytes consumed by a rejected oversized read count toward the 8 MiB total, and the walk stops when the total is exhausted. `LoadDir` returns workflows parsed so far plus one error per rejected file; only a failure to open the directory itself is a hard error.
 
 ## Rules
 

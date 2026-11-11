@@ -1,0 +1,4 @@
+on: push
+jobs:
+  deploy:
+    uses: org/repo/.github/workflows/deploy.yml@v1

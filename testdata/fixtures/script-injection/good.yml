@@ -1,0 +1,7 @@
+on: push
+jobs:
+  build:
+    steps:
+      - env:
+          TITLE: ${{ github.event.issue.title }}
+        run: echo "$TITLE"

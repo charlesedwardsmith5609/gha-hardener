@@ -1,0 +1,7 @@
+on: push
+permissions:
+  contents: read
+jobs:
+  build:
+    steps:
+      - run: echo ok
