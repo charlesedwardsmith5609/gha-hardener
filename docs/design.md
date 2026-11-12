@@ -26,7 +26,7 @@ Reported paths use forward slashes, are relative, and are rejected when they con
 
 Rules are functions from `*workflow.Workflow` to findings. They do not read the filesystem and do not call the network. `All` concatenates and sorts. When more than 999 rule findings exist, it keeps the first 999 and appends one `findings-truncated` note after the sort, so the total stays at 1000 and the note stays last.
 
-Effective permissions and the untrusted-trigger set are defined in `REQUIREMENTS.md`.
+Effective permissions, the untrusted-trigger set, and `remote-script` are defined in `REQUIREMENTS.md`. `remote-script` scans the `run` string on the calling goroutine. It does not fetch the URL.
 
 ## Reports
 

@@ -9,5 +9,6 @@ Source of truth for behavior is `REQUIREMENTS.md`. This page is the short list.
 5. **secrets-untrusted-trigger** (error). Any `secrets` context access under an untrusted trigger, except an access that is exactly `secrets.GITHUB_TOKEN` (dot or quoted brackets).
 6. **unscoped-pat** (error). Classic `ghp_` literal in `env`, or a PAT-named env var pointing at a non-`GITHUB_TOKEN` secret.
 7. **script-injection** (error). `run` reads `github.event` via dot or `github['event']` / `github["event"]`. Passing the value through `env` is the safe pattern and is not a finding.
+8. **remote-script** (error). `run` feeds `curl` or `wget` to a shell by process substitution, a pipe, `eval`, or `shell -c`, and a URL is not an `https` commit path on `github.com` or `raw.githubusercontent.com`. Download-to-file is not this rule.
 
 `findings-truncated` (note) is appended last when rule findings would exceed 999, so the report stays within 1000 results. It is not a workflow rule.

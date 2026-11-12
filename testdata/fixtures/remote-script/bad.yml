@@ -1,0 +1,7 @@
+on: push
+jobs:
+  build:
+    steps:
+      - run: |
+          bash <(curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)

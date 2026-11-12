@@ -27,6 +27,7 @@ var meta = []ruleMeta{
 	{"permissions-missing", "Job has no permissions block", "warning"},
 	{"permissions-write-all", "Job grants write-all", "error"},
 	{"pull-request-target-checkout", "pull_request_target checks out pull request head", "error"},
+	{"remote-script", "run script executes an unpinned remote script", "error"},
 	{"script-injection", "run script reads github.event", "error"},
 	{"secrets-untrusted-trigger", "Secret passed to an untrusted trigger", "error"},
 	{"unpinned-action", "Action is not pinned to a commit SHA", "warning"},

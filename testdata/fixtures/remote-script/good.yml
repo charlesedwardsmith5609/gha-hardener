@@ -1,0 +1,10 @@
+on: push
+jobs:
+  build:
+    steps:
+      - run: |
+          bash <(curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/rhysd/actionlint/0123456789abcdef0123456789abcdef01234567/scripts/download-actionlint.bash)
+      - run: |
+          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+          unzip -qo /tmp/awscliv2.zip -d /tmp

@@ -37,6 +37,7 @@ func All(wfs []*workflow.Workflow) []Finding {
 		add(Secrets(wf))
 		add(PAT(wf))
 		add(Injection(wf))
+		add(Remote(wf))
 	}
 	out := append([]Finding(nil), kept.items...)
 	sort.SliceStable(out, func(i, j int) bool {

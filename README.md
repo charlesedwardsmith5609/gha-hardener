@@ -28,6 +28,7 @@ Text lines look like `file:line:column: severity: rule-id: message`. JSON is `{"
 | `secrets-untrusted-trigger` | error | a secret other than `GITHUB_TOKEN` reaches an untrusted trigger |
 | `unscoped-pat` | error | an env value is a classic PAT or a PAT-named secret |
 | `script-injection` | error | a `run` step reads `github.event` |
+| `remote-script` | error | a `run` step executes `curl` or `wget` output that is not pinned to a commit on `github.com` |
 
 ## Threat model
 
@@ -39,15 +40,15 @@ It does not verify action source, signatures, or attestations. It does not call 
 
 ## Sample findings
 
-Scanned [charlesedwardsmith5609/platform-templates](https://github.com/charlesedwardsmith5609/platform-templates) at `c05f37ed6c665c4dd75af01cb4b0162a34c1e855`: `.github/workflows/ci.yml`, `secrets-injection.yml`, and `service-onboarding.yml`.
+[platform-templates](https://github.com/charlesedwardsmith5609/platform-templates) at `c05f37ed6c665c4dd75af01cb4b0162a34c1e855` (`ci.yml`, `secrets-injection.yml`, `service-onboarding.yml`):
 
-```json
-{
-  "findings": []
-}
+```text
+ci.yml:103:14: error: remote-script: run script executes a remote script that is not pinned to a commit SHA
 ```
 
-Exit code 0 at the default `--fail-on warning`. Actions in those files are 40-character SHAs. Each workflow and job sets a permissions block. There is no `pull_request_target`. Secret expressions sit on `workflow_call`, `workflow_dispatch`, and `repository_dispatch`. `GH_TOKEN` is `secrets.GITHUB_TOKEN`. `github.event` is read in `env`, not in a `run` step.
+Exit code 1. That step is `bash <(curl …/rhysd/actionlint/main/scripts/download-actionlint.bash)`. The other two files produced no findings.
+
+At `7f5678977743bec4c062aafd00d5db100cddf3cc` the same URL uses commit `3795ba2f6cb243eeca54c9d22e5c531cb9dcfb4a`. Those three files produce no findings and exit 0.
 
 ## CI
 

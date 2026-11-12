@@ -33,6 +33,7 @@ func TestGoldenSARIF(t *testing.T) {
 		"secrets-untrusted-trigger",
 		"unscoped-pat",
 		"script-injection",
+		"remote-script",
 	} {
 		if !seen[id] {
 			t.Fatalf("golden fixture missing %s in %#v", id, findings)

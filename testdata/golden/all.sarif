@@ -44,6 +44,15 @@
               }
             },
             {
+              "id": "remote-script",
+              "shortDescription": {
+                "text": "run script executes an unpinned remote script"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
               "id": "script-injection",
               "shortDescription": {
                 "text": "run script reads github.event"
@@ -238,6 +247,46 @@
                 "region": {
                   "startLine": 15,
                   "startColumn": 15
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "permissions-missing",
+          "level": "warning",
+          "message": {
+            "text": "job \"fetched\" has no permissions block"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 18,
+                  "startColumn": 3
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "remote-script",
+          "level": "error",
+          "message": {
+            "text": "run script executes a remote script that is not pinned to a commit SHA"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 20,
+                  "startColumn": 14
                 }
               }
             }
