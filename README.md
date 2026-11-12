@@ -39,7 +39,15 @@ It does not verify action source, signatures, or attestations. It does not call 
 
 ## Sample findings
 
-No public repository is named `platform-templates`. `github/platform-templates` returns 404, and repository search returns no repository with that name. This README does not include findings from a different repository.
+Scanned [charlesedwardsmith5609/platform-templates](https://github.com/charlesedwardsmith5609/platform-templates) at `c05f37ed6c665c4dd75af01cb4b0162a34c1e855`: `.github/workflows/ci.yml`, `secrets-injection.yml`, and `service-onboarding.yml`.
+
+```json
+{
+  "findings": []
+}
+```
+
+Exit code 0 at the default `--fail-on warning`. Actions in those files are 40-character SHAs. Each workflow and job sets a permissions block. There is no `pull_request_target`. Secret expressions sit on `workflow_call`, `workflow_dispatch`, and `repository_dispatch`. `GH_TOKEN` is `secrets.GITHUB_TOKEN`. `github.event` is read in `env`, not in a `run` step.
 
 ## CI
 
