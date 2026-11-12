@@ -85,6 +85,45 @@ func TestSymlinkDirComponent(t *testing.T) {
 	}
 }
 
+func TestFixPinsAndLeavesDoubleQuoted(t *testing.T) {
+	dir := t.TempDir()
+	body := []byte("on: push\npermissions:\n  contents: read\njobs:\n  build:\n    steps:\n      - uses: \"actions/checkout@v4\"\n")
+	if err := os.WriteFile(filepath.Join(dir, "ci.yml"), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lock := `{"version":1,"pins":{"actions/checkout@v4":{"sha":"0123456789abcdef0123456789abcdef01234567","repository":"actions/checkout","ref":"v4"}}}`
+	lockPath := filepath.Join(dir, "pins.json")
+	if err := os.WriteFile(lockPath, []byte(lock), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code := Run([]string{"--dir", dir, "--fix", "--lockfile", lockPath}, &bytes.Buffer{}, &bytes.Buffer{})
+	if code != 1 {
+		t.Fatalf("exit %d", code)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "ci.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(body) {
+		t.Fatalf("file changed\n%s", got)
+	}
+
+	plain := []byte("on: push\npermissions:\n  contents: read\njobs:\n  build:\n    steps:\n      - uses: actions/checkout@v4\n")
+	if err := os.WriteFile(filepath.Join(dir, "ci.yml"), plain, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := Run([]string{"--dir", dir, "--fix", "--lockfile", lockPath}, &bytes.Buffer{}, &bytes.Buffer{}); code != 0 {
+		t.Fatalf("pinned exit %d", code)
+	}
+	got, err = os.ReadFile(filepath.Join(dir, "ci.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "actions/checkout@0123456789abcdef0123456789abcdef01234567") {
+		t.Fatalf("file\n%s", got)
+	}
+}
+
 func TestWriteError(t *testing.T) {
 	dir := t.TempDir()
 	body := []byte("on: push\npermissions:\n  contents: read\njobs:\n  build:\n    steps:\n      - uses: actions/checkout@v4\n")

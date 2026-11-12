@@ -5,6 +5,7 @@ package workflow
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -213,7 +214,7 @@ func LoadDir(dir string) ([]*Workflow, []FileError, error) {
 			limit = remaining
 		}
 		display := displayPath(dir, name)
-		body, err := readEntry(dirfd, name, limit)
+		body, _, err := readEntry(dirfd, name, limit)
 		if err != nil {
 			if errors.Is(err, ErrTooBig) {
 				total += limit
@@ -238,24 +239,114 @@ func LoadDir(dir string) ([]*Workflow, []FileError, error) {
 	return out, errs, nil
 }
 
-func readEntry(dirfd int, name string, max int) ([]byte, error) {
+// Visit reads every workflow file, then calls fn, and only then replaces
+// files whose bytes changed. The directory descriptor comes from the
+// no-follow walk. Reads, the temp create, and renameat all use it.
+// fn runs on the calling goroutine. A later file error leaves earlier
+// files untouched.
+func Visit(dir string, fn func(name string, data []byte) ([]byte, error)) error {
+	dirfd, err := openDirNoFollow(dir)
+	if err != nil {
+		return fmt.Errorf("open workflow directory: %w", err)
+	}
+	defer syscall.Close(dirfd)
+	names, err := matchingNames(dirfd)
+	if err != nil {
+		return err
+	}
+	if len(names) > MaxFiles {
+		return ErrTooMany
+	}
+	type held struct {
+		name string
+		data []byte
+		mode os.FileMode
+		next []byte
+	}
+	files := make([]held, 0, len(names))
+	total := 0
+	for _, name := range names {
+		body, mode, err := readEntry(dirfd, name, MaxFileBytes)
+		if err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		total += len(body)
+		if total > MaxTotalBytes {
+			return ErrTotal
+		}
+		files = append(files, held{name: name, data: body, mode: mode})
+	}
+	for i := range files {
+		next, err := fn(files[i].name, files[i].data)
+		if err != nil {
+			return fmt.Errorf("%s: %w", files[i].name, err)
+		}
+		files[i].next = next
+	}
+	for _, f := range files {
+		if bytes.Equal(f.data, f.next) {
+			continue
+		}
+		if err := writeReplace(dirfd, f.name, f.next, f.mode); err != nil {
+			return fmt.Errorf("%s: %w", f.name, err)
+		}
+	}
+	return nil
+}
+
+func writeReplace(dirfd int, name string, data []byte, mode os.FileMode) error {
+	var rnd [8]byte
+	if _, err := rand.Read(rnd[:]); err != nil {
+		return err
+	}
+	tmp := fmt.Sprintf(".gha-hardener-%x", rnd)
+	perm := mode.Perm()
+	if perm == 0 {
+		perm = 0o644
+	}
+	fd, err := syscall.Openat(dirfd, tmp, syscall.O_CREAT|syscall.O_EXCL|syscall.O_WRONLY|syscall.O_CLOEXEC, uint32(perm))
+	if err != nil {
+		return err
+	}
+	f := os.NewFile(uintptr(fd), tmp)
+	_, werr := f.Write(data)
+	cerr := f.Close()
+	if werr != nil || cerr != nil {
+		_ = syscall.Unlinkat(dirfd, tmp)
+		if werr != nil {
+			return werr
+		}
+		return cerr
+	}
+	if err := syscall.Renameat(dirfd, tmp, dirfd, name); err != nil {
+		_ = syscall.Unlinkat(dirfd, tmp)
+		return err
+	}
+	return nil
+}
+
+func readEntry(dirfd int, name string, max int) ([]byte, os.FileMode, error) {
 	fd, err := syscall.Openat(dirfd, name, syscall.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
 	if err != nil {
 		if errors.Is(err, syscall.ELOOP) {
-			return nil, ErrSymlink
+			return nil, 0, ErrSymlink
 		}
-		return nil, err
+		return nil, 0, err
 	}
 	f := os.NewFile(uintptr(fd), name)
 	defer f.Close()
 	st, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if !st.Mode().IsRegular() {
-		return nil, ErrNotRegular
+		return nil, 0, ErrNotRegular
 	}
-	return readLimited(f, max)
+	buf, err := readLimited(f, max)
+	if err != nil {
+		return nil, 0, err
+	}
+	return buf, st.Mode(), nil
 }
 
 func readLimited(f *os.File, max int) ([]byte, error) {

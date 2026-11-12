@@ -1,5 +1,6 @@
 // Package cli is the gha-hardener command line.
-// Run uses the calling goroutine only. It does not open network connections.
+// Run uses the calling goroutine only. resolve is the only command that
+// opens a network connection.
 package cli
 
 import (
@@ -7,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
+	"gha-hardener/internal/pin"
 	"gha-hardener/internal/report"
 	"gha-hardener/internal/rules"
 	"gha-hardener/internal/workflow"
@@ -15,28 +18,31 @@ import (
 
 // Run executes one invocation. It returns the process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
-	if len(args) > 0 && args[0] == "resolve" {
-		fmt.Fprintln(stderr, "resolve is not available")
-		return 2
-	}
+	cmd := "scan"
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		if args[0] != "scan" {
-			fmt.Fprintf(stderr, "unknown command %q\n", args[0])
-			return 2
-		}
+		cmd = args[0]
 		args = args[1:]
 	}
+	switch cmd {
+	case "scan":
+		return runScan(args, stdout, stderr)
+	case "resolve":
+		return runResolve(args, stdout, stderr)
+	default:
+		fmt.Fprintf(stderr, "unknown command %q\n", cmd)
+		return 2
+	}
+}
+
+func runScan(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("gha-hardener", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	dir := fs.String("dir", ".github/workflows", "workflow directory")
 	format := fs.String("format", "text", "text, json, or sarif")
 	failOn := fs.String("fail-on", "warning", "none, note, warning, or error")
 	fix := fs.Bool("fix", false, "pin tags from the lockfile")
+	lockPath := fs.String("lockfile", "gha-pins.json", "pin lockfile")
 	if err := fs.Parse(args); err != nil {
-		return 2
-	}
-	if *fix {
-		fmt.Fprintln(stderr, "--fix is not available")
 		return 2
 	}
 	if fs.NArg() != 0 {
@@ -53,6 +59,17 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	default:
 		fmt.Fprintf(stderr, "unknown --format %q\n", *format)
 		return 2
+	}
+	if *fix {
+		lock, err := pin.Read(*lockPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "%v\n", err)
+			return 2
+		}
+		if err := pin.Apply(*dir, lock); err != nil {
+			fmt.Fprintf(stderr, "%v\n", err)
+			return 2
+		}
 	}
 
 	wfs, ferrs, err := workflow.LoadDir(*dir)
@@ -75,6 +92,33 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	if threshold >= 0 && anyAtLeast(findings, threshold) {
 		return 1
 	}
+	return 0
+}
+
+func runResolve(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("resolve", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	dir := fs.String("dir", ".github/workflows", "workflow directory")
+	lockPath := fs.String("lockfile", "gha-pins.json", "pin lockfile")
+	timeout := fs.Duration("timeout", 10*time.Second, "per-request timeout")
+	apiBase := fs.String("api-base", pin.DefaultAPI, "GitHub API base URL")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "unexpected argument %q\n", fs.Arg(0))
+		return 2
+	}
+	lock, err := pin.Resolve(*dir, *apiBase, *timeout)
+	if err != nil {
+		fmt.Fprintf(stderr, "%v\n", err)
+		return 2
+	}
+	if err := pin.Write(*lockPath, lock); err != nil {
+		fmt.Fprintf(stderr, "%v\n", err)
+		return 2
+	}
+	fmt.Fprintf(stdout, "pinned %d refs\n", len(lock.Pins))
 	return 0
 }
 
