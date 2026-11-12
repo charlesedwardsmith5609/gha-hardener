@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "pins": {
+    "actions/checkout@v4": {
+      "sha": "11d5960a326750d5838078e36cf38b85af677262",
+      "repository": "actions/checkout",
+      "ref": "v4"
+    },
+    "actions/setup-go@v5": {
+      "sha": "40f1582b2485089dde7abd97c1529aa768e1baff",
+      "repository": "actions/setup-go",
+      "ref": "v5"
+    }
+  }
+}
