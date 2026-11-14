@@ -15,6 +15,6 @@ Format follows Keep a Changelog. Dates are UTC.
 - `docs/design.md` and `REQUIREMENTS.md` describe the ref rules the code enforces (no whitespace, backslash, `?` or `#`).
 - `REQUIREMENTS.md` no longer says to ask before adding `gopkg.in/yaml.v3`.
 
-## 2026-11-11 to 2026-11-13
+## 2026-11-11
 
 - Initial scanner: eight rules, text/JSON/SARIF output, `resolve`, `--fix`, pinned CI workflow, `remote-script` rule.
