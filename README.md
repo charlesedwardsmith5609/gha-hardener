@@ -13,6 +13,8 @@ go run ./cmd/gha-hardener resolve --timeout 10s
 go run ./cmd/gha-hardener --fix
 ```
 
+Scan flags: `--dir` (default `.github/workflows`), `--format` (`text`, `json`, `sarif`), `--fail-on`, `--fix`, `--lockfile` (default `gha-pins.json`). `resolve` flags: `--dir`, `--lockfile`, `--timeout` (default 10s, allowed 1s to 30s), `--api-base` (only `https://api.github.com` or `http://127.0.0.1`, for tests). Any other host, a bad flag value, an unknown command, or an unreadable directory exits 2. The directory is not searched recursively.
+
 Text lines look like `file:line:column: severity: rule-id: message`. JSON is `{"findings":[...]}`. SARIF is 2.1.0. `--fail-on` is `none`, `note`, `warning` (default), or `error`. Exit 1 means a finding is at or above that level. Exit 2 means the invocation itself failed.
 
 `resolve` writes `gha-pins.json`. It sends one GET per `owner/repo@ref` to `https://api.github.com` and does not send a token. `--fix` reads that file and does not call the network. It rewrites plain and single-quoted `uses` values. Double-quoted, block, and folded values stay as they are.
@@ -52,4 +54,8 @@ At `7f5678977743bec4c062aafd00d5db100cddf3cc` the same URL uses commit `3795ba2f
 
 ## CI
 
-`.github/workflows/ci.yml` pins `actions/checkout@v4` and `actions/setup-go@v5` to the SHAs in `gha-pins.json`, sets `permissions: contents: read`, and runs `bash scripts/check.sh`. On Go 1.26.10 that check fails `govulncheck` with GO-2026-6859 in `net/http`, fixed in Go 1.26.11. The toolchain was not upgraded.
+`.github/workflows/ci.yml` pins `actions/checkout@v4` and `actions/setup-go@v5` to the SHAs in `gha-pins.json`, sets `permissions: contents: read`, installs `govulncheck` v1.9.0, and runs `bash scripts/check.sh`. `go.mod` requires Go 1.26.11, which fixes GO-2026-6859 in `net/http` (see `DECISIONS.md`, D-20 and D-22). Running the scanner on this repository's own workflows prints nothing and exits 0.
+
+## Pairing and review scripts
+
+`scripts/` holds the agent-pairing-kit helpers this project was built with (kit commit 2ccbb85). `scripts/check.sh` is the completion gate: misbehavior and assertion heuristics, then gofmt, `go vet`, `govulncheck`, and `go test -race -count=1`. `scripts/cross-review.sh` (and `cross-review.ps1`) sends a diff to another AI provider for review after a `gitleaks` scan. It fails closed: a missing `gitleaks`, a scanner error, or a finding sends nothing. Only tracked changes are sent; name an untracked file with `--include PATH`. Files such as `.env*` and keys are never sent. Output goes to `.reviews/`, which is gitignored. `plan-review.sh` does the same for a plan in `plans/`.
